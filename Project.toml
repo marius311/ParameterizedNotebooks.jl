@@ -1,0 +1,7 @@
+name = "ParameterizedNotebooks"
+uuid = "efe69fdf-5f6b-4971-99df-296990405262"
+authors = ["marius <mariusmillea@gmail.com>"]
+version = "0.1.0"
+
+[deps]
+MacroTools = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
