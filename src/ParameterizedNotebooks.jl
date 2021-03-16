@@ -2,20 +2,24 @@ module ParameterizedNotebooks
 
 using MacroTools
 
-export @arg, @skip, @skiprest, ParameterizedNotebook
+export @arg, @nbonly, @ret, ParameterizedNotebook
 
 macro arg(ex)
     @capture(ex, arg_ = val_) || error("usage: @arg name = val")
     esc(ex)
 end
 
-macro skip(ex)
+macro nbonly(ex)
     esc(ex)
 end
 
-macro skiprest()
+macro ret(ex=nothing)
+    :(ReturnValue($(esc(ex))))
 end
 
+struct ReturnValue
+    val
+end
 
 struct ParameterizedNotebook
     filename :: String
@@ -37,7 +41,7 @@ end
 
 function Base.show(io::IO, nb::ParameterizedNotebook)
     print(io, "ParameterizedNotebook(\"", nb.filename, "\") with parameters: ")
-    print(io, "(", join(string.(nb.parameters), ", "), ")")
+    print(io, join(string.(nb.parameters), ", "))
 end
 
 function (nb::ParameterizedNotebook)(; kwargs...)
@@ -48,12 +52,13 @@ function (nb::ParameterizedNotebook)(; kwargs...)
     for ex in nb.exprs
         if @capture(ex, @arg name_ = val_)
             @eval Main $name = $(kwargs[name])
-        elseif @capture(ex, @skip _)
+        elseif @capture(ex, @nbonly _)
             continue
-        elseif @capture(ex, @skiprest)
-            break
         else
-            Main.eval(ex)
+            ans = Main.eval(ex)
+            if ans isa ReturnValue
+                return ans.val
+            end
         end
     end
 end
