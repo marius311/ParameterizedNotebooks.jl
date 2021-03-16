@@ -1,5 +1,7 @@
 # ParameterizedNotebooks
 
+[![runtests](https://github.com/marius311/ParameterizedNotebooks.jl/actions/workflows/runtests.yml/badge.svg)](https://github.com/marius311/ParameterizedNotebooks.jl/actions/workflows/runtests.yml)
+
 Turn a Jupyter notebook into general purpose Julia function which can be run repeatedly from the same or other Julia sessions with different input arguments.
 
 ## Install
@@ -31,3 +33,7 @@ You can return a value from the notebook with the `@ret` macro. `@ret` is also u
 ## Details
 
 The package is extremely simple and just reads the notebook file from disk and repeatedly `eval`'s each cell into `Main` (just as if you had run the cells, thus avoiding any scoping issues), replacing `@arg` expressions with the appropriate value, skipping `@nbonly` expressions, and returning once it hits a `@ret`.
+
+## Related
+
+Similar to [takluyver/nbparameterise](https://github.com/takluyver/nbparameterise), [tritemio/nbrun](https://github.com/tritemio/nbrun), and [nteract/papermill](https://github.com/nteract/papermill), but more powerful because arbitrary objects, not just string representations, can be passed as parameters and returned from the notebooks. Also, much simpler to use and only requires decorating a few lines with macros. However, lacks the ability to generate "reports" with outputs filled in. 
