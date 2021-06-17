@@ -2,10 +2,10 @@ module ParameterizedNotebooks
 
 using MacroTools
 
-export @arg, @nbonly, @ret, ParameterizedNotebook
+export @nbarg, @nbonly, @nbreturn, ParameterizedNotebook
 
-macro arg(ex)
-    @capture(ex, arg_ = val_) || error("usage: @arg name = val")
+macro nbarg(ex)
+    @capture(ex, arg_ = val_) || error("usage: @nbarg name = val")
     esc(ex)
 end
 
@@ -13,7 +13,7 @@ macro nbonly(ex)
     esc(ex)
 end
 
-macro ret(ex=nothing)
+macro nbreturn(ex=nothing)
     :(ReturnValue($(esc(ex))))
 end
 
@@ -32,7 +32,7 @@ function ParameterizedNotebook(filename::String)
     exprs = parsecode(script)
     parameters = Symbol[]
     for ex in exprs
-        if @capture(ex, @arg name_ = val_)
+        if @capture(ex, @nbarg name_ = val_)
             push!(parameters, name)
         end
     end
@@ -50,7 +50,7 @@ function (nb::ParameterizedNotebook)(; kwargs...)
         haskey(kwargs, name) || error("Must provide keyword argument for $name.")
     end
     for ex in nb.exprs
-        if @capture(ex, @arg name_ = val_)
+        if @capture(ex, @nbarg name_ = val_)
             @eval Main $name = $(kwargs[name])
         elseif @capture(ex, @nbonly _)
             continue
