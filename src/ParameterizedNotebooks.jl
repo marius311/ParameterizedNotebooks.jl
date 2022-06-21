@@ -1,11 +1,11 @@
 module ParameterizedNotebooks
 
-using MacroTools
+using MacroTools, JSON
 
-export @nbarg, @nbonly, @nbreturn, ParameterizedNotebook
+export @nbparam, @nbonly, @nbreturn, ParameterizedNotebook
 
-macro nbarg(ex)
-    @capture(ex, arg_ = val_) || error("usage: @nbarg name = val")
+macro nbparam(ex)
+    @capture(ex, arg_ = val_) || error("usage: @nbparam name = val")
     esc(ex)
 end
 
@@ -27,15 +27,65 @@ struct ParameterizedNotebook
     exprs :: Vector
 end
 
-function ParameterizedNotebook(filename::String)
-    script = read(`jupyter nbconvert --to script $filename --stdout`, String)
-    exprs = parsecode(script)
+
+function parse_heading(str)
+    m = match(r"(#*)\s+(.+)\s*",str)
+    m == nothing ? nothing : (level=length(m.captures[1]), name=m.captures[2])
+end
+
+section_matches(current_section::String, pattern::Nothing; recursive=true) = true
+function section_matches(current_section::String, patterns::Tuple; recursive=true)
+    any(section_matches(current_section, pattern; recursive=recursive) for pattern in patterns)
+end
+function section_matches(current_section::String, pattern::String; recursive=true)
+    recursive ? occursin(pattern, current_section) : endswith(pattern, current_section)
+end
+function section_matches(current_section::String, pattern::Regex; recursive=true)
+    recursive ? match(pattern, current_section) : match(pattern * r"$", current_section)
+end
+section_matches(current_section::Tuple, section; recursive) = section_matches(join(current_section, "/"), section; recursive)
+
+
+function ParameterizedNotebook(filename::String; sections=nothing, recursive=true)
+
+    cells = JSON.parsefile(filename)["cells"]
+    exprs = []
+    
+    current_section = ("",)
+    current_section_active = section_matches(current_section, sections; recursive)
+    
+    while !isempty(cells)
+        cell = first(cells)
+        if cell["cell_type"] == "code"
+            popfirst!(cells)
+            if current_section_active
+                append!(exprs, parsecode(join(cell["source"],"\n")))
+            end
+        elseif cell["cell_type"] == "markdown"
+            if isempty(cell["source"])
+                popfirst!(cells)
+            else
+                heading = parse_heading(popfirst!(cell["source"]))
+                if heading != nothing
+                    current_section = (current_section[1:min(end,heading.level)]..., heading.name)
+                    current_section_active = section_matches(current_section, sections; recursive)
+                    if current_section_active
+                        @show current_section
+                    end
+                end
+            end
+        else
+            popfirst!(cells)
+        end
+    end
+
     parameters = Symbol[]
     for ex in exprs
-        if @capture(ex, @nbarg name_ = val_)
+        if @capture(ex, @nbparam name_ = val_)
             push!(parameters, name)
         end
     end
+
     ParameterizedNotebook(filename, parameters, exprs)
 end
 
@@ -50,7 +100,7 @@ function (nb::ParameterizedNotebook)(; kwargs...)
         haskey(kwargs, name) || error("Must provide keyword argument for $name.")
     end
     for ex in nb.exprs
-        if @capture(ex, @nbarg name_ = val_)
+        if @capture(ex, @nbparam name_ = val_)
             @eval Main $name = $(kwargs[name])
         elseif @capture(ex, @nbonly _)
             continue

@@ -6,15 +6,10 @@ Turn a Jupyter notebook into general purpose Julia function which can be run rep
 
 ## Install
 
-Needs [nbconvert](https://nbconvert.readthedocs.io/en/latest/install.html):
-```
-pip install nbconvert
-```
-
-Then from the Julia package prompt:
+From the Julia package prompt:
 
 ```
-pkg> add https://github.com/marius311/ParameterizedNotebooks.jl.git
+pkg> add ParameterizedNotebooks
 ```
 
 
@@ -24,15 +19,29 @@ Best demonstrated with an example:
 
 ![](examples/example.png)
 
-There are no limitations whatsoever on what the notebook contains or how complex it is, only that the arguments which will be parameterized over are marked with `@nbarg name = val`. The `@nbarg` macro does nothing special when running the notebook normally in Jupyter, so above `seed` is set to `1` and execution proceeds as usual. 
+There are no limitations whatsoever on what the notebook contains or how complex it is, only that the arguments which will be parameterized over are marked with `@nbparam name = val`. The `@nbparam` macro does nothing special when running the notebook normally in Jupyter, so above `seed` is set to `1` and execution proceeds as usual. 
 
 You can mark code which should only run in Jupyter but will otherwise be skipped in the parameterized call (e.g. visualization) with `@nbonly`. 
 
 You can return a value from the notebook with the `@nbreturn` macro. `@nbreturn` is also useful to return the parameterized call somewhere before the end of your notebook. Code cells below this are not run and can contain other code, even triggering the parameterized call itself from the same kernel/notebook, as in the above example. 
 
+## Advanced
+
+You can select only certain sections from the notebook to run with the keyword argument `sections`. Sections should be delineated in the notebook with typical markdown headings. For example:
+
+```
+ParameterizedNotebook("mynotebook.ipynb", sections=("Initialization", "Compute result"))
+```
+
+will run all code in the sections "Initialization" and "Compute result" and all of their subsections. If recursing into the subsections is undesired, also pass `recurse=false`. The `sections` argument should be a string matching a heading title exactly or a regex which matches a heading title, or a tuple of strings/regexs for matching multiple sections.
+
 ## Details
 
-The package is extremely simple and just reads the notebook file from disk and repeatedly `eval`'s each cell into `Main` (just as if you had run the cells, thus avoiding any scoping issues), replacing `@nbarg` expressions with the appropriate value, skipping `@nbonly` expressions, and returning once it hits a `@nbreturn`.
+The package is extremely simple and just reads the notebook file from disk and repeatedly `eval`'s each cell into `Main` (just as if you had run the cells, thus avoiding any scoping issues), replacing `@nbparam` expressions with the appropriate value, skipping `@nbonly` expressions, and returning once it hits a `@nbreturn`.
+
+## Limitations
+
+Stack traces don't give you the cell number, but this can be fixed in the future. 
 
 ## Related
 
