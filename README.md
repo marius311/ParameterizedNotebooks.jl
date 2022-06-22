@@ -52,7 +52,7 @@ ParameterizedNotebook("mynotebook.ipynb") with parameters: (param1, param2)
 
 ## Details
 
-The package is extremely simple and just reads the notebook file from disk and repeatedly `eval`'s the selected cell into `Main` (just as if you had run the cells in Jupyter), replacing `@nbparam` expressions with the appropriate value, skipping `@nbonly` expressions, and returning if it hits a `@nbreturn`.
+The package is extremely simple and just reads the notebook file from disk and repeatedly `eval`'s all or a subset of the cells into `Main` (just as if you had run the cells in Jupyter), replacing `@nbparam` expressions with the appropriate value, skipping `@nbonly` expressions, and returning if it hits a `@nbreturn`.
 
 ## Related
 
