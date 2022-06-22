@@ -1,6 +1,6 @@
 module ParameterizedNotebooks
 
-using MacroTools, JSON
+using MacroTools, JSON, Term
 
 export @nbparam, @nbonly, @nbreturn, ParameterizedNotebook
 
@@ -25,41 +25,43 @@ struct ParameterizedNotebook
     filename :: String
     parameters :: Vector{Symbol}
     exprs :: Vector
+    toc :: Union{String,Nothing}
 end
-
-
-function parse_heading(str)
-    m = match(r"(#*)\s+(.+)\s*",str)
-    m == nothing ? nothing : (level=length(m.captures[1]), name=m.captures[2])
-end
-
-section_matches(current_section::String, pattern::Nothing; recursive=true) = true
-function section_matches(current_section::String, patterns::Tuple; recursive=true)
-    any(section_matches(current_section, pattern; recursive=recursive) for pattern in patterns)
-end
-function section_matches(current_section::String, pattern::String; recursive=true)
-    recursive ? occursin(pattern, current_section) : endswith(pattern, current_section)
-end
-function section_matches(current_section::String, pattern::Regex; recursive=true)
-    recursive ? match(pattern, current_section) : match(pattern * r"$", current_section)
-end
-section_matches(current_section::Tuple, section; recursive) = section_matches(join(current_section, "/"), section; recursive)
 
 
 function ParameterizedNotebook(filename::String; sections=nothing, recursive=true)
 
     cells = JSON.parsefile(filename)["cells"]
+
     exprs = []
-    
-    current_section = ("",)
+    parameters = Symbol[]
+    toc = []
+
+    function heading_string(active, level, name)
+        if active
+            " "^(2*level) * @bold(@green("☒ ") * name) * "\n" * " "^(2*(level+1)) * @bold(@green("☒ ")) * @bold("…")
+        else
+            " "^(2*level) * @dim("□ " * name)
+        end
+    end
+
+    current_section = ("~",)
     current_section_active = section_matches(current_section, sections; recursive)
-    
+    push!(toc, heading_string(current_section_active, 0, "~"))
+
     while !isempty(cells)
         cell = first(cells)
         if cell["cell_type"] == "code"
             popfirst!(cells)
             if current_section_active
-                append!(exprs, parsecode(join(cell["source"],"\n")))
+                source = join(cell["source"],"\n")
+                cell_id = cell["execution_count"] == nothing ? "In" : "In[$(cell["execution_count"])]"
+                append!(exprs, parsecode(source, cell_id) do ex
+                    if @capture(ex, @nbparam name_ = val_)
+                        push!(parameters, name)
+                    end
+                    ex
+                end)
             end
         elseif cell["cell_type"] == "markdown"
             if isempty(cell["source"])
@@ -69,9 +71,7 @@ function ParameterizedNotebook(filename::String; sections=nothing, recursive=tru
                 if heading != nothing
                     current_section = (current_section[1:min(end,heading.level)]..., heading.name)
                     current_section_active = section_matches(current_section, sections; recursive)
-                    if current_section_active
-                        @show current_section
-                    end
+                    push!(toc, heading_string(current_section_active, heading.level, heading.name))
                 end
             end
         else
@@ -79,19 +79,17 @@ function ParameterizedNotebook(filename::String; sections=nothing, recursive=tru
         end
     end
 
-    parameters = Symbol[]
-    for ex in exprs
-        if @capture(ex, @nbparam name_ = val_)
-            push!(parameters, name)
-        end
-    end
-
-    ParameterizedNotebook(filename, parameters, exprs)
+    ParameterizedNotebook(filename, parameters, exprs, isnothing(sections) ? nothing : join(toc, "\n"))
 end
 
 function Base.show(io::IO, nb::ParameterizedNotebook)
-    print(io, "ParameterizedNotebook(\"", nb.filename, "\") with parameters: ")
-    print(io, join(string.(nb.parameters), ", "))
+    print(io, "ParameterizedNotebook(\"", nb.filename, "\")")
+    if !isempty(nb.parameters)
+        print(" with parameters: (", join(string.(nb.parameters), ", "), ")")
+    end
+    if nb.toc != nothing
+        print(io, "\n", nb.toc)
+    end
 end
 
 function (nb::ParameterizedNotebook)(; kwargs...)
@@ -100,12 +98,12 @@ function (nb::ParameterizedNotebook)(; kwargs...)
         haskey(kwargs, name) || error("Must provide keyword argument for $name.")
     end
     for ex in nb.exprs
-        if @capture(ex, @nbparam name_ = val_)
+        if @capture(last(ex.args), @nbparam name_ = val_)
             @eval Main $name = $(kwargs[name])
-        elseif @capture(ex, @nbonly _)
+        elseif @capture(last(ex.args), @nbonly _)
             continue
         else
-            ans = Main.eval(ex)
+            ans = Core.eval(Main, ex)
             if ans isa ReturnValue
                 return ans.val
             end
@@ -114,13 +112,49 @@ function (nb::ParameterizedNotebook)(; kwargs...)
 end
 
 
-function parsecode(code::String)
-    # https://discourse.julialang.org/t/parsing-a-julia-file/32622
-    filter(
-        x -> !(x isa LineNumberNode),
-        Meta.parse(join(["quote", code, "end"], ";")).args[1].args
-    )
+# more-or-less a copy of Base.include_string
+# but instead of eval'ing the expression, just return it
+function parsecode(mapexpr::Function, code::String, filename)
+    loc = LineNumberNode(1, Symbol(filename))
+    try
+        ast = Meta.parseall(code, filename=filename)
+        @assert Meta.isexpr(ast, :toplevel)
+        result = nothing
+        exs = []
+        for ex in ast.args
+            line_and_ex = Expr(:toplevel, loc, nothing)
+            if ex isa LineNumberNode
+                loc = ex
+                line_and_ex.args[1] = ex
+                continue
+            end
+            ex = mapexpr(ex)
+            # Wrap things to be eval'd in a :toplevel expr to carry line
+            # information as part of the expr.
+            line_and_ex.args[2] = ex
+            push!(exs, line_and_ex)
+        end
+        exs
+    catch exc
+        # TODO: Now that stacktraces are more reliable we should remove
+        # LoadError and expose the real error type directly.
+        rethrow(LoadError(filename, loc.line, exc))
+    end
 end
 
+
+# section matching logic
+section_matches(current_section::AbstractString, pattern::Nothing) = true
+section_matches(current_section::AbstractString, patterns::Tuple) =
+    any(section_matches(current_section, pattern) for pattern in patterns)
+section_matches(current_section::AbstractString, pattern::Union{String,Regex}) = occursin(pattern, current_section)
+section_matches(current_section::Tuple, section; recursive) = 
+    section_matches(recursive ? join(current_section, "/") : last(current_section), section)
+
+
+function parse_heading(str)
+    m = match(r"(#*)\s+(.+)\s*",str)
+    m == nothing ? nothing : (level=length(m.captures[1]), name=m.captures[2])
+end
 
 end
