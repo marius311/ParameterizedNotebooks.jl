@@ -85,7 +85,7 @@ end
 function Base.show(io::IO, nb::ParameterizedNotebook)
     print(io, "ParameterizedNotebook(\"", nb.filename, "\")")
     if !isempty(nb.parameters)
-        print(" with parameters: (", join(string.(nb.parameters), ", "), ")")
+        print(io, " with parameters: (", join(string.(nb.parameters), ", "), ")")
     end
     if nb.toc != nothing
         print(io, "\n", nb.toc)
@@ -99,7 +99,7 @@ function (nb::ParameterizedNotebook)(; kwargs...)
     end
     for ex in nb.exprs
         if @capture(last(ex.args), @nbparam name_ = val_)
-            @eval Main $name = $(kwargs[name])
+            @eval Main $name = $(QuoteNode(kwargs[name]))
         elseif @capture(last(ex.args), @nbonly _)
             continue
         else
