@@ -46,7 +46,7 @@ function ParameterizedNotebook(filename::String; sections=nothing, recursive=tru
     end
 
     current_section = ("~",)
-    current_section_active = section_matches(current_section, sections; recursive=recursive)
+    current_section_active = section_matches(current_section, sections; recursive)
     push!(toc, heading_string(current_section_active, 0, "~"))
 
     while !isempty(cells)
@@ -70,7 +70,7 @@ function ParameterizedNotebook(filename::String; sections=nothing, recursive=tru
                 heading = parse_heading(popfirst!(cell["source"]))
                 if heading != nothing
                     current_section = (current_section[1:min(end,heading.level)]..., heading.name)
-                    current_section_active = section_matches(current_section, sections; recursive=recursive)
+                    current_section_active = section_matches(current_section, sections; recursive)
                     push!(toc, heading_string(current_section_active, heading.level, heading.name))
                 end
             end

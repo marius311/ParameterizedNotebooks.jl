@@ -37,7 +37,7 @@ will run all code in the sections "Initialization" and "Compute result" and all 
 When `sections` is provided, printing the `ParameterizedNotebook` shows a tree which can be used to verify the expected code will be run, e.g. you might see something like this:
 
 ```julia
-julia> ParameterizedNotebook("mynotebook.ipynb", sections=("Init", "Section B", recursive=false)
+julia> ParameterizedNotebook("mynotebook.ipynb", sections=("Init", "Section B"), recursive=false)
 
 ParameterizedNotebook("mynotebook.ipynb") with parameters: (param1, param2)
 □ ~
@@ -52,7 +52,7 @@ ParameterizedNotebook("mynotebook.ipynb") with parameters: (param1, param2)
 
 ## Details
 
-The package is extremely simple and just reads the notebook file from disk and repeatedly `eval`'s the selected cell into `Main` (just as if you had run the cells in Jupyter), replacing `@nbparam` expressions with the appropriate value, skipping `@nbonly` expressions, and returning once it hits a `@nbreturn`.
+The package is extremely simple and just reads the notebook file from disk and repeatedly `eval`'s the selected cell into `Main` (just as if you had run the cells in Jupyter), replacing `@nbparam` expressions with the appropriate value, skipping `@nbonly` expressions, and returning if it hits a `@nbreturn`.
 
 ## Related
 
