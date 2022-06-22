@@ -147,9 +147,10 @@ end
 section_matches(current_section::AbstractString, pattern::Nothing) = true
 section_matches(current_section::AbstractString, patterns::Tuple) =
     any(section_matches(current_section, pattern) for pattern in patterns)
-section_matches(current_section::AbstractString, pattern::Union{String,Regex}) = occursin(pattern, current_section)
-section_matches(current_section::Tuple, section; recursive) = 
-    section_matches(recursive ? join(current_section, "/") : last(current_section), section)
+section_matches(current_section::AbstractString, pattern::String) = current_section == pattern
+section_matches(current_section::AbstractString, pattern::Regex) = occursin(pattern, current_section)
+section_matches(current_section::Tuple, pattern; recursive) = 
+    recursive ? any(section_matches(s, pattern) for s in current_section) : section_matches(last(current_section), pattern)
 
 
 function parse_heading(str)
