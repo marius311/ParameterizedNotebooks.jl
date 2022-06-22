@@ -5,10 +5,9 @@ on: [push, pull_request]
 jobs:
   main:
     runs-on: ${{ matrix.os }}
-    continue-on-error: ${{ matrix.experimental == 'nightly' }}
     strategy:
       matrix:
-        julia-version: ['1.2', '1.3', '1.4', '1.5', '1.6-nightly']
+        julia-version: ['1.2', '1.3', '1.4', '1.5', '1.6', '1.7', '1.8.0-rc1']
         os: [ubuntu-latest]
       fail-fast: false
     env:
@@ -20,6 +19,6 @@ jobs:
         with:
           version: ${{ matrix.julia-version }}
       - run: >
-          pip3 install nbconvert matplotlib
+          pip3 install matplotlib
       - uses: julia-actions/julia-runtest@master
         timeout-minutes: 5
