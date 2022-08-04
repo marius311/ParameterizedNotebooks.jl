@@ -8,7 +8,7 @@ using ParameterizedNotebooks: section_matches
 
         nb = ParameterizedNotebook("../examples/example.ipynb")
         @test nb.parameters == [:seed]
-        @test_throws Exception nb()
+        @test nb() == 1
         @test [nb(;seed=seed) for seed in 1:4] == [1,4,9,16]
 
     end
