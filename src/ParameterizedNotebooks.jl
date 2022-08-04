@@ -94,12 +94,13 @@ end
 
 function (nb::ParameterizedNotebook)(; kwargs...)
     kwargs = Dict(kwargs)
-    for name in nb.parameters
-        haskey(kwargs, name) || error("Must provide keyword argument for $name.")
-    end
     for ex in nb.exprs
         if @capture(last(ex.args), @nbparam name_ = val_)
-            @eval Main $name = $(QuoteNode(kwargs[name]))
+            if haskey(kwargs, name)
+                @eval Main $name = $(QuoteNode(kwargs[name]))
+            else
+                @eval Main $name = $(val)
+            end
         elseif @capture(last(ex.args), @nbonly _)
             continue
         else
