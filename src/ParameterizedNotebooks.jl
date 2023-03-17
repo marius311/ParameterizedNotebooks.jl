@@ -155,7 +155,7 @@ section_matches(current_section::Tuple, pattern; recursive) =
 
 
 function parse_heading(str)
-    m = match(r"(#*)\s+(.+)\s*",str)
+    m = match(r"(#+)\s+(.+)\s*",str)
     m == nothing ? nothing : (level=length(m.captures[1]), name=m.captures[2])
 end
 
