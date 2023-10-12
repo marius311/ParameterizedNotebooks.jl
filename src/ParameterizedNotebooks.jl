@@ -31,7 +31,7 @@ end
 
 function ParameterizedNotebook(filename::String; sections=nothing, recursive=true)
 
-    cells = JSON.parsefile(filename)["cells"]
+    cells = JSON.parsefile(filename, use_mmap=false)["cells"]
 
     exprs = []
     parameters = Symbol[]
@@ -72,6 +72,8 @@ function ParameterizedNotebook(filename::String; sections=nothing, recursive=tru
                     current_section = (current_section[1:min(end,heading.level)]..., heading.name)
                     current_section_active = section_matches(current_section, sections; recursive)
                     push!(toc, heading_string(current_section_active, heading.level, heading.name))
+                else
+                    popfirst!(cells)
                 end
             end
         else
@@ -155,7 +157,7 @@ section_matches(current_section::Tuple, pattern; recursive) =
 
 
 function parse_heading(str)
-    m = match(r"(#+)\s+(.+)\s*",str)
+    m = match(r"^(#+)\s+(.+)\s*",str)
     m == nothing ? nothing : (level=length(m.captures[1]), name=m.captures[2])
 end
 
