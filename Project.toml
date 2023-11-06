@@ -1,7 +1,7 @@
 name = "ParameterizedNotebooks"
 uuid = "efe69fdf-5f6b-4971-99df-296990405262"
 authors = ["Marius Millea <mariusmillea@gmail.com>"]
-version = "0.2.2"
+version = "0.2.3"
 
 [deps]
 JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
