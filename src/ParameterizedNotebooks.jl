@@ -2,7 +2,7 @@ module ParameterizedNotebooks
 
 using MacroTools, JSON, Term
 
-export @nbparam, @nbonly, @nbreturn, ParameterizedNotebook
+export @nbparam, @nbonly, @nbreturn, @ParameterizedNotebook, ParameterizedNotebook
 
 macro nbparam(ex)
     @capture(ex, arg_ = val_) || error("usage: @nbparam name = val")
@@ -55,9 +55,12 @@ function ParameterizedNotebook(filename::String; sections=nothing, recursive=tru
             popfirst!(cells)
             if current_section_active
                 source = join(cell["source"],"\n")
-                cell_id = cell["execution_count"] == nothing ? "In" : "In[$(cell["execution_count"])]"
+                cell_id = cell["execution_count"] == nothing ? "In[ ]" : "In[$(cell["execution_count"])]"
                 append!(exprs, parsecode(source, cell_id) do ex
-                    if @capture(ex, @nbparam name_ = val_)
+                    if @capture(strip_toplevel(ex), @nbparam name_ = val_)
+                        if name in parameters
+                            error("repeat definition of `$name` at cell '$cell_id'")
+                        end
                         push!(parameters, name)
                     end
                     ex
@@ -96,14 +99,21 @@ end
 
 function (nb::ParameterizedNotebook)(; kwargs...)
     kwargs = Dict(kwargs)
+    for k in keys(kwargs)
+        if !(k in nb.parameters)
+            error("passed unknown parameter `$k`")
+        end
+    end
     for ex in nb.exprs
-        if @capture(last(ex.args), @nbparam name_ = val_)
+        if @capture(strip_toplevel(ex), @nbparam name_ = val_)
             if haskey(kwargs, name)
-                @eval Main $name = $(QuoteNode(kwargs[name]))
-            else
-                @eval Main $name = $(val)
+                val = kwargs[name]
+                if val isa LazyParam
+                    val = @eval Main $(QuoteNode(val.ex))
+                end
             end
-        elseif @capture(last(ex.args), @nbonly _)
+            @eval Main $name = $(val)
+        elseif @capture(strip_toplevel(ex), @nbonly _)
             continue
         else
             ans = Core.eval(Main, ex)
@@ -112,6 +122,26 @@ function (nb::ParameterizedNotebook)(; kwargs...)
             end
         end
     end
+end
+
+struct LazyParam
+    ex
+end
+
+macro ParameterizedNotebook(parameter_function, args...)
+
+    ex_args, ex_kwargs = macro_args_to_func_args(args)
+    @capture(parameter_function, () -> begin parameter_function_body__ end)
+    nb_params = map(parameter_function_body) do ex
+        @capture(ex, k_ = v_)
+        Expr(:kw, esc(k), LazyParam((v)))
+    end
+
+    quote
+        nb = ParameterizedNotebook($(ex_args...); $(ex_kwargs...))
+        nb(;$(nb_params...))
+    end
+
 end
 
 
@@ -160,5 +190,27 @@ function parse_heading(str)
     m = match(r"^(#+)\s+(.+)\s*",str)
     m == nothing ? nothing : (level=length(m.captures[1]), name=m.captures[2])
 end
+
+function macro_args_to_func_args(args)
+    ex_args = []
+    ex_kwargs = []
+    for arg in args
+        if arg isa Expr && arg.head == :kw
+            push!(ex_kwargs, arg)
+        else
+            push!(ex_args, arg)
+        end
+    end
+    return ex_args, ex_kwargs
+end
+
+function strip_toplevel(ex)
+    if ex isa Expr && ex.head == :toplevel
+        return strip_toplevel(last(ex.args))
+    else
+        return ex
+    end
+end
+
 
 end

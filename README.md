@@ -26,6 +26,8 @@ You can return a value from the notebook with the `@nbreturn` macro. `@nbreturn`
 
 ## Advanced
 
+### Running only parts of the notebook
+
 You can also select only certain sections from the notebook to run with the keyword argument `sections`. Sections should be delineated in the notebook with typical markdown headings. For example:
 
 ```julia
@@ -49,6 +51,19 @@ ParameterizedNotebook("mynotebook.ipynb") with parameters: (param1, param2)
     ☒ …
     □ Subsection B
 ```
+
+### Passing parameters lazily
+
+Sometimes its useful to pass parameters which contain code which depends on libraries or variables which aren't loaded or defined until parts of the notebook run. In such cases, you can use the macro form, e.g.:
+
+```julia
+@ParameterizedNotebook("mynotebook.ipynb") do 
+  foo = SomeLibrary.bar()  # assuming the notebook loads SomeLibrary
+  baz = 1 + qux  # assuming qux is defined in the notebook
+end
+```
+
+Here, the parameter values are not evaluated until the corresonding `@nbparam foo` and `@nbparam baz` cell in the notebook is actually reached. You can think of this as equivalent to if the code above is pasted into the spot of the `@nbparam` expression in the notebook. (Note the use of the do-block instead of a comma separated list used).
 
 ## Details
 
